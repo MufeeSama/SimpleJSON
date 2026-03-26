@@ -1,4 +1,4 @@
-unit SimpleJSON;
+﻿unit SimpleJSON;
 
 interface
 
@@ -96,6 +96,8 @@ type
     function Format: string;
     procedure SaveToFile(const FileName: string);
     function Clone: IJson;
+    function Flatten: IJson; overload;
+    function Flatten(const Prefix: string): IJson; overload;
     
     property S[const Key: string]: string read GetS write SetS;
     property I[const Key: string]: Integer read GetI write SetI;
@@ -162,6 +164,8 @@ type
     function Format: string;
     procedure SaveToFile(const FileName: string);
     function Clone: IJson;
+    function Flatten: IJson; overload;
+    function Flatten(const Prefix: string): IJson; overload;
     
     property S[const Key: string]: string read GetS write SetS;
     property I[const Key: string]: Integer read GetI write SetI;
@@ -797,6 +801,86 @@ begin
     Result := TJson.Parse(FObject.ToJSON)
   else
     Result := TJson.Create;
+end;
+
+procedure DoFlattenArray(Arr: System.JSON.TJSONArray; const Prefix: string; Result: System.JSON.TJSONObject); forward;
+
+procedure DoFlattenObject(Obj: System.JSON.TJSONObject; const Prefix: string; Result: System.JSON.TJSONObject);
+var
+  i: Integer;
+  Key, NewKey: string;
+  Value: System.JSON.TJSONValue;
+begin
+  if not Assigned(Obj) then
+    Exit;
+  for i := 0 to Obj.Count - 1 do
+  begin
+    Key := Obj.Pairs[i].JsonString.Value;
+    if Prefix <> '' then
+      NewKey := Prefix + '.' + Key
+    else
+      NewKey := Key;
+    Value := Obj.Pairs[i].JsonValue;
+    
+    if Value is System.JSON.TJSONObject then
+      DoFlattenObject(System.JSON.TJSONObject(Value), NewKey, Result)
+    else if Value is System.JSON.TJSONArray then
+      DoFlattenArray(System.JSON.TJSONArray(Value), NewKey, Result)
+    else
+      Result.AddPair(NewKey, Value.Clone as System.JSON.TJSONValue);
+  end;
+end;
+
+procedure DoFlattenArray(Arr: System.JSON.TJSONArray; const Prefix: string; Result: System.JSON.TJSONObject);
+var
+  i: Integer;
+  NewKey: string;
+  Value: System.JSON.TJSONValue;
+begin
+  if not Assigned(Arr) then
+    Exit;
+  for i := 0 to Arr.Count - 1 do
+  begin
+    NewKey := Prefix + '.' + IntToStr(i);
+    Value := Arr.Items[i];
+    
+    if Value is System.JSON.TJSONObject then
+      DoFlattenObject(System.JSON.TJSONObject(Value), NewKey, Result)
+    else if Value is System.JSON.TJSONArray then
+      DoFlattenArray(System.JSON.TJSONArray(Value), NewKey, Result)
+    else
+      Result.AddPair(NewKey, Value.Clone as System.JSON.TJSONValue);
+  end;
+end;
+
+function TJson.Flatten: IJson;
+var
+  ResultObj: System.JSON.TJSONObject;
+begin
+  ResultObj := System.JSON.TJSONObject.Create;
+  try
+    if Assigned(FObject) then
+      DoFlattenObject(FObject, '', ResultObj);
+    Result := TJson.Create(ResultObj, True);
+  except
+    ResultObj.Free;
+    raise;
+  end;
+end;
+
+function TJson.Flatten(const Prefix: string): IJson;
+var
+  ResultObj: System.JSON.TJSONObject;
+begin
+  ResultObj := System.JSON.TJSONObject.Create;
+  try
+    if Assigned(FObject) then
+      DoFlattenObject(FObject, Prefix, ResultObj);
+    Result := TJson.Create(ResultObj, True);
+  except
+    ResultObj.Free;
+    raise;
+  end;
 end;
 
 { TJsonArray }

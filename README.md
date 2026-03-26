@@ -13,6 +13,9 @@
 - **Null 值处理** - 支持 `IsNull`/`SetNull` 操作
 - **安全获取值** - `TryGet*` 系列方法避免键不存在时的异常
 - **文件读写** - `SaveToFile`/`LoadFromFile` 便捷操作
+- **扁平化处理** - `Flatten` 嵌套结构转换
+- **类型判断** - `GetValueType` 获取值的实际类型
+- **深拷贝** - `Clone` 方法支持对象克隆
 - **零依赖** - 仅依赖 Delphi 标准库
 
 ## 快速开始
@@ -116,15 +119,25 @@ var
   Json: IJson;
   Name: string;
   Age: Integer;
+  Address: IJson;
+  Tags: IJsonArray;
 begin
   Json := TJson.Parse('{"name":"张三","age":25}');
   
-  // 安全获取，避免键不存在时返回默认值
+  // 安全获取基本类型
   if Json.TryGetS('name', Name) then
     Writeln('姓名: ' + Name);
   
   if Json.TryGetI('age', Age) then
     Writeln('年龄: ' + IntToStr(Age));
+  
+  // 安全获取嵌套对象
+  if Json.TryGetO('address', Address) then
+    Writeln('城市: ' + Address.S['city']);
+  
+  // 安全获取数组
+  if Json.TryGetA('tags', Tags) then
+    Writeln('标签数: ' + IntToStr(Tags.Count));
   
   // 键不存在时返回 False
   if not Json.TryGetS('not_exists', Name) then
@@ -229,6 +242,100 @@ begin
 end;
 ```
 
+### 扁平化处理
+
+```delphi
+var
+  Json, Flat, Restored: IJson;
+begin
+  // 原始嵌套 JSON
+  Json := TJson.Create;
+  Json.S['name'] := '张三';
+  Json.O['address'].S['city'] := '北京';
+  Json.O['address'].S['zip'] := '100001';
+  Json.A['tags'].Add('tag1').Add('tag2');
+  
+  // 扁平化 - 将嵌套结构转为单层键值对
+  Flat := Json.Flatten;
+  // 结果: {"name":"张三","address.city":"北京","address.zip":"100001","tags.0":"tag1","tags.1":"tag2"}
+end;
+```
+
+### 带前缀扁平化 (合并多个对象)
+
+```delphi
+var
+  User, Order, UserFlat, OrderFlat, Merged: IJson;
+  Key: string;
+begin
+  User := TJson.Create;
+  User.S['name'] := '张三';
+  User.I['age'] := 25;
+  
+  Order := TJson.Create;
+  Order.S['id'] := 'ORD-001';
+  Order.F['amount'] := 199.99;
+  
+  // 带前缀扁平化
+  UserFlat := User.Flatten('user');
+  OrderFlat := Order.Flatten('order');
+  
+  // 合并到一个对象
+  Merged := TJson.Create;
+  for Key in UserFlat.GetKeys do
+    Merged.S[Key] := UserFlat.S[Key];
+  for Key in OrderFlat.GetKeys do
+    Merged.S[Key] := OrderFlat.S[Key];
+  
+  // 结果: {"user.name":"张三","user.age":"25","order.id":"ORD-001","order.amount":"199.99"}
+end;
+```
+
+### 类型判断
+
+```delphi
+var
+  Json: IJson;
+begin
+  Json := TJson.Parse('{"name":"张三","age":25,"active":true,"data":null}');
+  
+  // 获取值的类型
+  case Json.GetValueType('name') of
+    jvtString:  Writeln('name 是字符串');
+    jvtNumber:  Writeln('name 是数字');
+    jvtBoolean: Writeln('name 是布尔值');
+    jvtObject:  Writeln('name 是对象');
+    jvtArray:   Writeln('name 是数组');
+    jvtNull:    Writeln('name 是 null');
+  end;
+  
+  // 数组元素类型判断
+  if Json.A['items'].GetValueType(0) = jvtString then
+    Writeln('第一个元素是字符串');
+end;
+```
+
+### 对象克隆
+
+```delphi
+var
+  Original, Cloned: IJson;
+begin
+  Original := TJson.Create;
+  Original.S['name'] := '原始对象';
+  Original.I['value'] := 100;
+  
+  // 深拷贝
+  Cloned := Original.Clone;
+  
+  // 修改克隆不影响原始对象
+  Cloned.S['name'] := '克隆对象';
+  
+  Writeln(Original.S['name']);  // 输出: 原始对象
+  Writeln(Cloned.S['name']);    // 输出: 克隆对象
+end;
+```
+
 ## API 参考
 
 ### IJson 接口
@@ -246,12 +353,15 @@ end;
 | `Path[Path]` | 路径方式访问值 |
 | `IsNull(Key)` | 检查值是否为 null |
 | `SetNull(Key)` | 设置值为 null |
+| `GetValueType(Key)` | 获取值的类型 |
 | `TryGetS(Key, out)` | 安全获取字符串值 |
 | `TryGetI(Key, out)` | 安全获取整数值 |
 | `TryGetL(Key, out)` | 安全获取长整数值 |
 | `TryGetF(Key, out)` | 安全获取浮点数值 |
 | `TryGetB(Key, out)` | 安全获取布尔值 |
 | `TryGetD(Key, out)` | 安全获取日期时间值 |
+| `TryGetO(Key, out)` | 安全获取嵌套对象 |
+| `TryGetA(Key, out)` | 安全获取数组 |
 | `Contains(Key)` | 检查键是否存在 |
 | `Remove(Key)` | 删除指定键 |
 | `Clear` | 清空对象 |
@@ -260,6 +370,9 @@ end;
 | `ToJSON` | 输出紧凑 JSON 字符串 |
 | `Format` | 输出格式化 JSON 字符串 |
 | `SaveToFile(FileName)` | 保存到文件 |
+| `Clone` | 深拷贝对象 |
+| `Flatten` | 扁平化嵌套结构 |
+| `Flatten(Prefix)` | 带前缀扁平化 |
 
 ### IJsonArray 接口
 
@@ -272,7 +385,9 @@ end;
 | `B[Index]` | 获取布尔元素 |
 | `D[Index]` | 获取日期时间元素 |
 | `O[Index]` | 获取对象元素 |
+| `A[Index]` | 获取数组元素 (嵌套数组) |
 | `IsNull(Index)` | 检查元素是否为 null |
+| `GetValueType(Index)` | 获取元素类型 |
 | `Add(Value)` | 添加元素，返回 Self 支持链式调用 |
 | `AddNull` | 添加 null 元素 |
 | `AddObject` | 添加对象并返回 |
@@ -282,6 +397,7 @@ end;
 | `Count` | 获取元素数量 |
 | `ToJSON` | 输出紧凑 JSON 字符串 |
 | `Format` | 输出格式化 JSON 字符串 |
+| `Clone` | 深拷贝数组 |
 
 ### 类方法
 
@@ -293,6 +409,12 @@ end;
 | `TJson.LoadFromFile(FileName)` | 从文件加载 JSON (ParseFile 别名) |
 | `TJsonArray.Create` | 创建空 JSON 数组 |
 | `TJsonArray.Parse(String)` | 从字符串解析 JSON 数组 |
+
+### 类型枚举
+
+```delphi
+TJsonValueType = (jvtNull, jvtString, jvtNumber, jvtBoolean, jvtObject, jvtArray);
+```
 
 ## 与原生 System.JSON 对比
 

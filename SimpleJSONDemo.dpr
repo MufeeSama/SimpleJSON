@@ -189,16 +189,16 @@ begin
   Json.S['name'] := '原始名称';
   Json.I['value'] := 100;
   
-  Writeln('原始: ' + Json.ToJSON);
-  
+  Writeln('原始: ' + Json.Format);
+
   Json.S['name'] := '修改后的名称';
   Json.I['value'] := 200;
   Json.S['newField'] := '新增字段';
   
-  Writeln('修改后: ' + Json.ToJSON);
+  Writeln('修改后: ' + Json.Format);
   
   Json.Remove('value');
-  Writeln('删除 value 后: ' + Json.ToJSON);
+  Writeln('删除 value 后: ' + Json.Format);
   
   Writeln('是否存在 name: ' + BoolToStr(Json.Contains('name'), True));
   Writeln('是否存在 value: ' + BoolToStr(Json.Contains('value'), True));
@@ -323,9 +323,63 @@ begin
   Writeln;
 end;
 
+procedure DemoFlatten;
+var
+  Json, Flat, User, Order, Merged: IJson;
+  UserFlat, OrderFlat: IJson;
+  Key: string;
+begin
+  Writeln('=== 13. 扁平化处理 ===');
+  
+  Json := TJson.Create;
+  Json.S['name'] := '张三';
+  Json.O['address'].S['city'] := '北京';
+  Json.O['address'].S['zip'] := '100001';
+  Json.A['tags'].Add('tag1').Add('tag2');
+  Json.B['active'] := True;
+  
+  Writeln('原始嵌套 JSON:');
+  Writeln(Json.Format);
+  Writeln;
+  
+  Flat := Json.Flatten;
+  Writeln('扁平化后:');
+  Writeln(Flat.Format);
+  Writeln;
+  
+  Writeln('=== 14. 带前缀扁平化 (合并多个对象) ===');
+  
+  User := TJson.Create;
+  User.S['name'] := '张三';
+  User.I['age'] := 25;
+  
+  Order := TJson.Create;
+  Order.S['id'] := 'ORD-001';
+  Order.F['amount'] := 199.99;
+  
+  UserFlat := User.Flatten('user');
+  OrderFlat := Order.Flatten('order');
+  
+  Merged := TJson.Create;
+  for Key in UserFlat.GetKeys do
+    Merged.S[Key] := UserFlat.S[Key];
+  for Key in OrderFlat.GetKeys do
+    Merged.S[Key] := OrderFlat.S[Key];
+  
+  Writeln('合并结果:');
+  Writeln(Merged.Format);
+  Writeln;
+  Writeln('解析合并结果:');
+  Writeln('  user.name = ' + Merged.S['user.name']);
+  Writeln('  user.age = ' + Merged.S['user.age']);
+  Writeln('  order.id = ' + Merged.S['order.id']);
+  Writeln('  order.amount = ' + Merged.S['order.amount']);
+  Writeln;
+end;
+
 procedure DemoAutoMemory;
 begin
-  Writeln('=== 13. 自动内存管理 ===');
+  Writeln('=== 15. 自动内存管理 ===');
   Writeln('使用接口引用计数，无需手动 Free');
   Writeln;
   
@@ -358,6 +412,7 @@ begin
     DemoNullAndTryGet;
     DemoFileOperations;
     DemoComplexStructure;
+    DemoFlatten;
     DemoAutoMemory;
     
     Writeln('========================================');
