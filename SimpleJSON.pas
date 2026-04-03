@@ -381,10 +381,13 @@ begin
 end;
 
 procedure TJson.SetS(const Key, Value: string);
+var
+  OldPair: System.JSON.TJSONPair;
 begin
   if not Assigned(FObject) then
     FObject := System.JSON.TJSONObject.Create;
-  FObject.RemovePair(Key);
+  OldPair := FObject.RemovePair(Key);
+  OldPair.Free;
   FObject.AddPair(Key, Value);
 end;
 
@@ -403,10 +406,13 @@ begin
 end;
 
 procedure TJson.SetI(const Key: string; Value: Integer);
+var
+  OldPair: System.JSON.TJSONPair;
 begin
   if not Assigned(FObject) then
     FObject := System.JSON.TJSONObject.Create;
-  FObject.RemovePair(Key);
+  OldPair := FObject.RemovePair(Key);
+  OldPair.Free;
   FObject.AddPair(Key, Value);
 end;
 
@@ -425,10 +431,13 @@ begin
 end;
 
 procedure TJson.SetL(const Key: string; Value: Int64);
+var
+  OldPair: System.JSON.TJSONPair;
 begin
   if not Assigned(FObject) then
     FObject := System.JSON.TJSONObject.Create;
-  FObject.RemovePair(Key);
+  OldPair := FObject.RemovePair(Key);
+  OldPair.Free;
   FObject.AddPair(Key, Value);
 end;
 
@@ -447,10 +456,13 @@ begin
 end;
 
 procedure TJson.SetF(const Key: string; Value: Double);
+var
+  OldPair: System.JSON.TJSONPair;
 begin
   if not Assigned(FObject) then
     FObject := System.JSON.TJSONObject.Create;
-  FObject.RemovePair(Key);
+  OldPair := FObject.RemovePair(Key);
+  OldPair.Free;
   FObject.AddPair(Key, Value);
 end;
 
@@ -469,10 +481,13 @@ begin
 end;
 
 procedure TJson.SetB(const Key: string; Value: Boolean);
+var
+  OldPair: System.JSON.TJSONPair;
 begin
   if not Assigned(FObject) then
     FObject := System.JSON.TJSONObject.Create;
-  FObject.RemovePair(Key);
+  OldPair := FObject.RemovePair(Key);
+  OldPair.Free;
   FObject.AddPair(Key, Value);
 end;
 
@@ -490,10 +505,13 @@ begin
 end;
 
 procedure TJson.SetD(const Key: string; Value: TDateTime);
+var
+  OldPair: System.JSON.TJSONPair;
 begin
   if not Assigned(FObject) then
     FObject := System.JSON.TJSONObject.Create;
-  FObject.RemovePair(Key);
+  OldPair := FObject.RemovePair(Key);
+  OldPair.Free;
   FObject.AddPair(Key, FormatDateTime(JSON_DATE_FORMAT, Value));
 end;
 
@@ -590,10 +608,13 @@ begin
 end;
 
 procedure TJson.SetNull(const Key: string);
+var
+  OldPair: System.JSON.TJSONPair;
 begin
   if not Assigned(FObject) then
     FObject := System.JSON.TJSONObject.Create;
-  FObject.RemovePair(Key);
+  OldPair := FObject.RemovePair(Key);
+  OldPair.Free;
   FObject.AddPair(Key, System.JSON.TJSONNull.Create);
 end;
 
@@ -734,9 +755,14 @@ begin
 end;
 
 procedure TJson.Remove(const Key: string);
+var
+  OldPair: System.JSON.TJSONPair;
 begin
   if Assigned(FObject) then
-    FObject.RemovePair(Key);
+  begin
+    OldPair := FObject.RemovePair(Key);
+    OldPair.Free;
+  end;
 end;
 
 procedure TJson.Clear;
