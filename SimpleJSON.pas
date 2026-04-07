@@ -166,25 +166,12 @@ type
     function Clone: IJson;
     function Flatten: IJson; overload;
     function Flatten(const Prefix: string): IJson; overload;
-    
-    property S[const Key: string]: string read GetS write SetS;
-    property I[const Key: string]: Integer read GetI write SetI;
-    property L[const Key: string]: Int64 read GetL write SetL;
-    property F[const Key: string]: Double read GetF write SetF;
-    property B[const Key: string]: Boolean read GetB write SetB;
-    property D[const Key: string]: TDateTime read GetD write SetD;
-    property O[const Key: string]: IJson read GetO;
-    property A[const Key: string]: IJsonArray read GetA;
-    property Path[const Path: string]: string read GetPath;
-    property Count: Integer read GetCount;
   end;
 
   TJsonArray = class(TInterfacedObject, IJsonArray)
   private
     FArray: System.JSON.TJSONArray;
     FOwned: Boolean;
-    FJsonWrappers: TObjectList<TJson>;
-    FArrayWrappers: TObjectList<TJsonArray>;
     function GetCount: Integer;
     function GetS(Index: Integer): string;
     function GetI(Index: Integer): Integer;
@@ -343,12 +330,14 @@ class function TJson.Parse(const JSONString: string): IJson;
 var
   Value: System.JSON.TJSONValue;
 begin
-  Value := System.JSON.TJSONObject.ParseJSONValue(JSONString);
-  if Value is System.JSON.TJSONObject then
-    Result := TJson.Create(System.JSON.TJSONObject(Value), True)
-  else
-  begin
-    Value.Free;
+  Result := nil;
+  try
+    Value := System.JSON.TJSONObject.ParseJSONValue(JSONString);
+    if Value is System.JSON.TJSONObject then
+      Result := TJson.Create(System.JSON.TJSONObject(Value), True)
+    else if Assigned(Value) then
+      Value.Free;
+  except
     Result := nil;
   end;
 end;
@@ -357,12 +346,17 @@ class function TJson.ParseFile(const FileName: string): IJson;
 var
   List: TStringList;
 begin
-  List := TStringList.Create;
+  Result := nil;
   try
-    List.LoadFromFile(FileName, TEncoding.UTF8);
-    Result := Parse(List.Text);
-  finally
-    List.Free;
+    List := TStringList.Create;
+    try
+      List.LoadFromFile(FileName, TEncoding.UTF8);
+      Result := Parse(List.Text);
+    finally
+      List.Free;
+    end;
+  except
+    Result := nil;
   end;
 end;
 
@@ -768,8 +762,12 @@ end;
 procedure TJson.Clear;
 begin
   if Assigned(FObject) then
-    FreeAndNil(FObject);
-  FObject := System.JSON.TJSONObject.Create;
+  begin
+    if FOwned then
+      FreeAndNil(FObject);
+    FObject := System.JSON.TJSONObject.Create;
+    FOwned := True;
+  end;
 end;
 
 function TJson.GetKeys: TArray<string>;
@@ -812,12 +810,15 @@ procedure TJson.SaveToFile(const FileName: string);
 var
   List: TStringList;
 begin
-  List := TStringList.Create;
   try
-    List.Text := Format;
-    List.SaveToFile(FileName, TEncoding.UTF8);
-  finally
-    List.Free;
+    List := TStringList.Create;
+    try
+      List.Text := Format;
+      List.SaveToFile(FileName, TEncoding.UTF8);
+    finally
+      List.Free;
+    end;
+  except
   end;
 end;
 
@@ -916,8 +917,6 @@ begin
   inherited Create;
   FArray := System.JSON.TJSONArray.Create;
   FOwned := True;
-  FJsonWrappers := TObjectList<TJson>.Create(False);
-  FArrayWrappers := TObjectList<TJsonArray>.Create(False);
 end;
 
 constructor TJsonArray.Create(AArray: System.JSON.TJSONArray; AOwned: Boolean);
@@ -925,14 +924,10 @@ begin
   inherited Create;
   FArray := AArray;
   FOwned := AOwned;
-  FJsonWrappers := TObjectList<TJson>.Create(False);
-  FArrayWrappers := TObjectList<TJsonArray>.Create(False);
 end;
 
 destructor TJsonArray.Destroy;
 begin
-  FJsonWrappers.Free;
-  FArrayWrappers.Free;
   if FOwned and Assigned(FArray) then
     FArray.Free;
   inherited;
@@ -942,12 +937,14 @@ class function TJsonArray.Parse(const JSONString: string): IJsonArray;
 var
   Value: System.JSON.TJSONValue;
 begin
-  Value := System.JSON.TJSONObject.ParseJSONValue(JSONString);
-  if Value is System.JSON.TJSONArray then
-    Result := TJsonArray.Create(System.JSON.TJSONArray(Value), True)
-  else
-  begin
-    Value.Free;
+  Result := nil;
+  try
+    Value := System.JSON.TJSONObject.ParseJSONValue(JSONString);
+    if Value is System.JSON.TJSONArray then
+      Result := TJsonArray.Create(System.JSON.TJSONArray(Value), True)
+    else if Assigned(Value) then
+      Value.Free;
+  except
     Result := nil;
   end;
 end;
@@ -1036,36 +1033,26 @@ end;
 function TJsonArray.GetO(Index: Integer): IJson;
 var
   Value: System.JSON.TJSONValue;
-  Json: TJson;
 begin
   Result := nil;
   if Assigned(FArray) and (Index >= 0) and (Index < FArray.Count) then
   begin
     Value := FArray.Items[Index];
     if Value is System.JSON.TJSONObject then
-    begin
-      Json := TJson.Create(System.JSON.TJSONObject(Value), False);
-      FJsonWrappers.Add(Json);
-      Result := Json;
-    end;
+      Result := TJson.Create(System.JSON.TJSONObject(Value), False);
   end;
 end;
 
 function TJsonArray.GetA(Index: Integer): IJsonArray;
 var
   Value: System.JSON.TJSONValue;
-  Arr: TJsonArray;
 begin
   Result := nil;
   if Assigned(FArray) and (Index >= 0) and (Index < FArray.Count) then
   begin
     Value := FArray.Items[Index];
     if Value is System.JSON.TJSONArray then
-    begin
-      Arr := TJsonArray.Create(System.JSON.TJSONArray(Value), False);
-      FArrayWrappers.Add(Arr);
-      Result := Arr;
-    end;
+      Result := TJsonArray.Create(System.JSON.TJSONArray(Value), False);
   end;
 end;
 
@@ -1157,29 +1144,23 @@ end;
 function TJsonArray.AddObject: IJson;
 var
   NewObj: System.JSON.TJSONObject;
-  Json: TJson;
 begin
   if not Assigned(FArray) then
     FArray := System.JSON.TJSONArray.Create;
   NewObj := System.JSON.TJSONObject.Create;
   FArray.Add(NewObj);
-  Json := TJson.Create(NewObj, False);
-  FJsonWrappers.Add(Json);
-  Result := Json;
+  Result := TJson.Create(NewObj, False);
 end;
 
 function TJsonArray.AddArray: IJsonArray;
 var
   NewArr: System.JSON.TJSONArray;
-  Arr: TJsonArray;
 begin
   if not Assigned(FArray) then
     FArray := System.JSON.TJSONArray.Create;
   NewArr := System.JSON.TJSONArray.Create;
   FArray.Add(NewArr);
-  Arr := TJsonArray.Create(NewArr, False);
-  FArrayWrappers.Add(Arr);
-  Result := Arr;
+  Result := TJsonArray.Create(NewArr, False);
 end;
 
 procedure TJsonArray.Delete(Index: Integer);
@@ -1191,10 +1172,12 @@ end;
 procedure TJsonArray.Clear;
 begin
   if Assigned(FArray) then
-    FreeAndNil(FArray);
-  FArray := System.JSON.TJSONArray.Create;
-  FJsonWrappers.Clear;
-  FArrayWrappers.Clear;
+  begin
+    if FOwned then
+      FreeAndNil(FArray);
+    FArray := System.JSON.TJSONArray.Create;
+    FOwned := True;
+  end;
 end;
 
 function TJsonArray.Clone: IJsonArray;
